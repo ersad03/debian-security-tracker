@@ -3,6 +3,10 @@ set -euo pipefail
 
 DSA_URL="https://salsa.debian.org/security-tracker-team/security-tracker/-/raw/master/data/DSA/list"
 JOBS="${JOBS:-5}"
+CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-10}"
+CURL_MAX_TIME="${CURL_MAX_TIME:-60}"
+CURL_RETRIES="${CURL_RETRIES:-3}"
+CURL_RETRY_DELAY="${CURL_RETRY_DELAY:-5}"
 STATE_FILE="/run/dsa_new_cve_scores.state"
 if ! { [[ -e "$STATE_FILE" && -w "$STATE_FILE" ]] || [[ ! -e "$STATE_FILE" && -w /run ]]; }; then
   STATE_FILE="/run/user/${UID}/dsa_new_cve_scores/state"
@@ -124,7 +128,14 @@ fetch_one() {
   local body score http_code curl_exit
 
   # Do not use -f here; we need HTTP status to classify outcomes accurately.
-  body="$(curl -sS --max-time 20 -w $'\n%{http_code}' "https://cveawg.mitre.org/api/cve/$cve" 2>/dev/null)" || curl_exit=$?
+  body="$(curl -sS \
+    --connect-timeout "$CURL_CONNECT_TIMEOUT" \
+    --max-time "$CURL_MAX_TIME" \
+    --retry "$CURL_RETRIES" \
+    --retry-delay "$CURL_RETRY_DELAY" \
+    --retry-all-errors \
+    -w $'\n%{http_code}' \
+    "https://cveawg.mitre.org/api/cve/$cve" 2>/dev/null)" || curl_exit=$?
   curl_exit="${curl_exit:-0}"
   if (( curl_exit != 0 )); then
     printf '%s\tN/A\t1\ttransport_error\n' "$cve"
@@ -164,8 +175,19 @@ fetch_one() {
   printf '%s\t%s\t0\tok\n' "$cve" "$score"
 }
 export -f fetch_one
+export CURL_CONNECT_TIMEOUT CURL_MAX_TIME CURL_RETRIES CURL_RETRY_DELAY
 
-curl -fsS --max-time 30 "$DSA_URL" -o "$TMP_LIST"
+if ! curl -fsS \
+  --connect-timeout "$CURL_CONNECT_TIMEOUT" \
+  --max-time "$CURL_MAX_TIME" \
+  --retry "$CURL_RETRIES" \
+  --retry-delay "$CURL_RETRY_DELAY" \
+  --retry-all-errors \
+  "$DSA_URL" \
+  -o "$TMP_LIST" 2>/dev/null; then
+  echo "~~~~ NO NEW RECORDS FOUND ~~~~"
+  exit 0
+fi
 
 awk '
 BEGIN { OFS="\t"; seq=0; dsa=""; date=""; pkg=""; cves=""; releases="" }
