@@ -86,8 +86,7 @@ It maps CVEs to Debian packages and shows fix status by Debian release.
   ## Check Failed Calls
 
   ```bash
-  debsecan --suite "$(lsb_release -sc)" --only-fixed --format detail | awk 'BEGIN{RS="";FS="\n"} match($0,/^CVE-[0-9]{4}-[0-9]+/){print substr($0,RSTART,RLENGTH)}' | sort -u | while read -r
-  cve; do code="$(curl -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "https://cveawg.mitre.org/api/cve/$cve")"; [ "$code" = "200" ] || echo "$cve API_FAIL $code"; done
+  debsecan --suite "$(lsb_release -sc)" --only-fixed --format detail | awk 'BEGIN{RS="";FS="\n"} match($0,/^CVE-[0-9]{4}-[0-9]+/){print substr($0,RSTART,RLENGTH)}' | sort -u | while read -r cve; do code="$(curl -sS -L --max-time 20 -o /dev/null -w "%{http_code}" "https://cveawg.mitre.org/api/cve/$cve")"; [ "$code" = "200" ] || echo "$cve API_FAIL $code"; done
   ```
 
   ## CVE API Rate-Limit Check
