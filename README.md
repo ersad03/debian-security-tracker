@@ -202,3 +202,47 @@ It maps CVEs to Debian packages and shows fix status by Debian release.
   ./dsa_new_cve_scores.sh --search-dsa DSA-6256-1 DSA-6253-1
   ./dsa_new_cve_scores.sh --search-dsa DSA-6256-1 dsa-6253-1 --jobs 5
   ```
+
+## Creating Nagios alerts
+### On the host
+Place the scripts
+`/usr/local/bin/debsecan_cve_scores.sh`
+`/usr/local/share/nagios/plugins/check_debscan.sh`
+
+Edit visudo
+```
+# Cmnd alias specification
+Cmnd_Alias CHECK_DEBSCAN=/usr/local/bin/debsecan_cve_scores.sh
+# User privilege specification
+nagios  ALL=(ALL) NOPASSWD : CHECK_DEBSCAN
+```
+Edit `/etc/nagios/nrpe_local.cfg`
+```
+command[check_debscan]=/usr/local/share/nagios/plugins/check_debscan.sh --cve-score 9.0 --jobs 8 --only-active
+```
+Apply the server:
+```
+systemctl restart nagios-nrpe-server
+```
+### On Nagios Server 
+Edit `/etc/nagios3/objects/xxxxxx.motrada.net.cfg`
+```
+define service {
+        use                     generic-service
+        host_name               <HOST_NAME_CHANGE>
+        service_description     DebScan
+        check_command           check_nrpe_1arg!check_debscan
+        normal_check_interval   300
+        retry_interval          3
+        max_check_attempts      3
+        notification_options    w,u,c,r
+        contact_groups          administratoren
+}
+```
+NOTE: use `check_nrpe_1arg_20s` to extend the waiting time of NRPE to 20s.
+
+Apply on Nagios Server:
+```
+/etc/init.d/nagios3 reload
+```
+
